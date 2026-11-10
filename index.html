@@ -285,6 +285,12 @@ const PLAN = {
       { id: "facepull", n: "Face pulls", sets: 3, reps: "12–15", rest: 60, step: 2.5,
         how: ["Rope at upper-chest height.", "Pull towards your face, hands ending beside your ears.", "Squeeze the upper back for a second, then return slowly."],
         tip: "Offsets hours of hunching at a desk and in the car." },
+      { id: "sideplank", n: "Side plank", sets: 3, reps: "20–30 s each side", rest: 30, step: 5, timed: true,
+        how: ["Lie on your side, elbow under your shoulder, feet stacked.", "Lift your hips so your body is one straight line from head to feet.", "Hold without letting the hips sag, then switch sides.", "Log the shorter of your two holds."],
+        tip: "Works the hip muscles that stop the knee caving in, as well as your core." },
+      { id: "deadbug", n: "Dead bug", sets: 3, reps: "8 each side", rest: 45, step: 2, timed: true, u: "reps", uLong: "reps",
+        how: ["Lie on your back, arms pointing at the ceiling, knees bent at 90° over your hips.", "Press your lower back flat into the floor and keep it there.", "Slowly lower the opposite arm and leg towards the floor, then return.", "Alternate sides. Stop the set if your back starts to arch."],
+        tip: "Log reps per side. When 12 each side feels Good, hold a light dumbbell or slow the movement down." },
       { id: "curl", n: "Dumbbell curl", sets: 3, reps: "10–12", rest: 0, step: 2, perHand: true,
         how: ["Elbows pinned to your sides.", "Curl up without swinging, then lower over 2 seconds.", "Go straight into triceps pushdown, then rest."] },
       { id: "pushdown", n: "Cable triceps pushdown", sets: 3, reps: "10–12", rest: 60, step: 2.5,
@@ -313,7 +319,10 @@ const PLAN = {
       { id: "latraise", n: "Lateral raise", sets: 3, reps: "12–15", rest: 45, step: 1, perHand: true,
         how: ["Slight bend in the elbows.", "Raise the dumbbells out to shoulder height.", "Lower over 2 seconds."] },
       { id: "pallof", n: "Pallof press", sets: 3, reps: "10 each side", rest: 45, step: 2.5,
-        how: ["Stand side-on to a cable at chest height.", "Press the handle straight out and hold 2 seconds.", "Don't let the cable twist you round."] }
+        how: ["Stand side-on to a cable at chest height.", "Press the handle straight out and hold 2 seconds.", "Don't let the cable twist you round."] },
+      { id: "carry", n: "Suitcase carry", sets: 3, reps: "30 m each side", rest: 60, step: 2, rLabel: "metres",
+        how: ["Hold one heavy dumbbell at your side, like a suitcase.", "Stand tall and walk 30 m without leaning towards the weight.", "Switch hands and walk back.", "Log the weight and the distance per side."],
+        tip: "If there's no space to walk, hold it still for 30 s per side instead." }
     ] },
   fri: { short: "Cardio", title: "Bike + treadmill intervals", mins: 45, cardio: true, intervals: true,
     warm: "Hardest cardio of the week goes last so the weekend rest follows it.",
@@ -348,7 +357,8 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 const rnd = v => Math.round(v * 100) / 100;
 const num = v => (v === "" || v == null || isNaN(+v)) ? null : +v;
 const kg = v => v == null ? "—" : rnd(v) + " kg";
-const val = (e, v) => v == null ? "—" : (e.timed ? Math.round(v) + " s" : kg(v));
+const uOf = e => e.u || "s";
+const val = (e, v) => v == null ? "—" : (e.timed ? Math.round(v) + " " + uOf(e) : kg(v));
 function restLabel(s) { if (!s) return "none"; return s >= 120 ? (s / 60) + " min" : s + " s"; }
 function range(e) { const m = e.reps.match(/(\d+)(?:–(\d+))?/); return { lo: +m[1], hi: +(m[2] || m[1]) }; }
 function slots(e) {
@@ -395,25 +405,26 @@ function suggest(e, side, sessions) {
   const { lo, hi } = range(e), step = stepOf(e);
   const hist = sessions.filter(s => setsFor(s, side).some(t => measure(e, t) != null));
   if (!hist.length) return { w: e.timed ? lo : null, dir: "new",
-    msg: e.timed ? `Start by holding ${lo} s per set.` : e.assist ? `First go: pick an assistance weight that lets you do ${hi} reps with 2–3 to spare.` : `First go: pick a weight you could lift for ${hi} reps with 2–3 to spare.` };
+    msg: e.timed ? (e.u === "reps" ? `Start with ${lo} reps per set.` : `Start by holding ${lo} s per set.`) : e.assist ? `First go: pick an assistance weight that lets you do ${hi} reps with 2–3 to spare.` : `First go: pick a weight you could lift for ${hi} reps with 2–3 to spare.` };
   const last = hist[hist.length - 1], S = setsFor(last, side).filter(t => measure(e, t) != null);
   const vals = S.map(t => measure(e, t));
-  const W = e.timed ? Math.min(...vals) : (e.assist ? Math.min(...vals) : Math.max(...vals));
+  const W = e.assist ? Math.min(...vals) : Math.max(...vals);
   const j = judge(e, S, W);
   if (!j.rated) return { w: W, dir: "hold", msg: `Rate each set and the app will tell you when to go up.` };
 
   if (e.timed) {
-    if (j.allEasy) return { w: W + 10, dir: "up", msg: `Every hold felt easy. Add 10 s.` };
-    if (j.allTop) return { w: W + 5, dir: "up", msg: `Solid holds at ${W} s. Add 5 s.` };
-    return { w: W, dir: "hold", msg: `Stay at ${W} s until every hold feels Good.` };
+    const u = uOf(e);
+    if (j.allEasy) return { w: W + 2 * step, dir: "up", msg: `Every set felt easy. Add ${2 * step} ${u}.` };
+    if (j.allTop) return { w: W + step, dir: "up", msg: `Solid sets at ${W} ${u}. Add ${step} ${u}.` };
+    return { w: W, dir: "hold", msg: `Stay at ${W} ${u} until every set feels Good.` };
   }
   const prev = hist[hist.length - 2];
   const prevFailed = prev ? judge(e, setsFor(prev, side).filter(t => measure(e, t) != null), W).failed : false;
   const move = d => e.assist ? Math.max(0, W - d) : W + d;
   const jump = d => e.assist ? `Take ${rnd(d)} kg off the assistance.` : `Add ${rnd(d)} kg.`;
   if (e.assist && W === 0 && j.allTop) return { w: 0, dir: "hold", msg: `You're doing these unassisted. Keep adding reps.` };
-  if (j.allEasy) return { w: rnd(move(2 * step)), dir: "up", msg: `Every set felt easy at ${hi} reps. ${jump(2 * step)}` };
-  if (j.allTop) return { w: rnd(move(step)), dir: "up", msg: `You hit ${hi} reps on every set at ${kg(W)}. ${jump(step)}` };
+  if (j.allEasy) return { w: rnd(move(2 * step)), dir: "up", msg: `Every set felt easy at ${hi} ${e.rLabel || "reps"}. ${jump(2 * step)}` };
+  if (j.allTop) return { w: rnd(move(step)), dir: "up", msg: `You hit ${hi} ${e.rLabel || "reps"} on every set at ${kg(W)}. ${jump(step)}` };
   if (j.failed && prevFailed) return { w: rnd(e.assist ? W + step : Math.max(0, W - step)), dir: "down", msg: `Missed reps two sessions running. Ease back ${rnd(step)} kg and build up again.` };
   if (j.failed) return { w: W, dir: "hold", msg: `Missed reps last time. Stay at ${kg(W)} and aim to complete every set.` };
   if (j.anyHard) return { w: W, dir: "hold", msg: `Some sets were hard. Stay at ${kg(W)} until they all feel Good at ${hi} reps.` };
@@ -436,6 +447,8 @@ function persist(id) {
 }
 async function initStore() {
   data = lsLoad();
+  safetyCopy("daily");
+  try { navigator.storage?.persist?.(); } catch (e) {}
   render();
   const status = $("#status");
   if (PWA) { status.textContent = LOCAL_MSG; registerSW(); return; }
@@ -446,17 +459,76 @@ async function initStore() {
     col = d.collection("data/users/" + uid);
     const timer = setTimeout(() => { status.textContent = "Can't reach your saved sets yet. Showing what's on this device."; }, 10000);
     col.onSnapshot(snap => {
-      if (!snap.metadata.fromCache) { clearTimeout(timer); status.textContent = "Sets saved to your account, across devices."; }
+      if (!snap.metadata.fromCache) { clearTimeout(timer); status.textContent = "Sets saved to your Claude account. The Home Screen app keeps its own separate records."; }
       if (snap.empty && Object.keys(data).length && !snap.metadata.fromCache) {
         Object.keys(data).filter(k => k.startsWith("log-") || data[k].sessions?.length || data[k].h?.length).forEach(k => persist(k));
         return;
       }
       const fresh = {};
       snap.docs.forEach(doc => { fresh[doc.id] = JSON.parse(JSON.stringify(doc.data())); });
-      data = fresh; lsSave(); safeRender();
+      // merge, never replace: anything only on this device is kept and sent up once
+      const localOnly = Object.keys(data).filter(k => !(k in fresh) && !pushed.has(k) && worthKeeping(data[k], k));
+      Object.keys(fresh).forEach(k => { data[k] = k in data ? mergeRecord(data[k], fresh[k], true) : fresh[k]; });
+      localOnly.forEach(k => { pushed.add(k); persist(k); });
+      lsSave(); safeRender();
     }, () => { clearTimeout(timer); status.textContent = LOCAL_MSG; col = null; });
   } catch (e) { status.textContent = LOCAL_MSG; }
 }
+const pushed = new Set();
+const ratedCount = sess => (sess?.sets || []).filter(t => t && t.f).length;
+const worthKeeping = (v, k) => !!v && (k.startsWith("log-") || v.sessions?.length || v.h?.length);
+// Combine two copies of one record without losing sessions. On the same day, the copy with more rated sets wins.
+function mergeRecord(a, b, preferB) {
+  if (!a) return b; if (!b) return a;
+  if (a.kind || b.kind) {             // a saved workout: keep the most recently saved copy
+    return (a.saved || "") > (b.saved || "") ? a : (a.saved === b.saved && !preferB ? a : b);
+  }
+  if (!a.sessions || !b.sessions) return b.sessions ? b : a;
+  const m = new Map(a.sessions.map(x => [x.d, x]));
+  b.sessions.forEach(x => {
+    const cur = m.get(x.d);
+    if (!cur) m.set(x.d, x);
+    else { const ca = ratedCount(cur), cb = ratedCount(x); if (cb > ca || (cb === ca && preferB)) m.set(x.d, x); }
+  });
+  const out = { ...a, ...b, sessions: [...m.values()].sort((x, y) => x.d < y.d ? -1 : 1).slice(-60) };
+  if (!b.step && a.step) out.step = a.step;
+  return out;
+}
+// Automatic safety copies kept on this device (last 7)
+function safetyList() { try { return JSON.parse(localStorage.getItem("rack-log-safety") || "[]"); } catch (e) { return []; } }
+function safetyCopy(reason, force) {
+  try {
+    if (!Object.keys(data).some(k => worthKeeping(data[k], k))) return;
+    const list = safetyList();
+    if (!force && list.some(x => x.at.slice(0, 10) === TODAY && x.reason === reason)) return;
+    list.unshift({ at: new Date().toISOString(), reason, data: JSON.parse(JSON.stringify(data)) });
+    localStorage.setItem("rack-log-safety", JSON.stringify(list.slice(0, 7)));
+  } catch (e) {}
+}
+function mergeIn(inc) {
+  const ids = new Set(DAYS.flatMap(dk => (PLAN[dk].ex || []).map(e => e.id)));
+  let n = 0;
+  Object.entries(inc).forEach(([k, v]) => {
+    if (!v || typeof v !== "object" || !(k.startsWith("log-") || ids.has(k))) return;
+    data[k] = mergeRecord(data[k], JSON.parse(JSON.stringify(v)), true);
+    persist(k); n++;
+  });
+  return n;
+}
+function restoreFrom(text) {
+  let inc;
+  try { const p = JSON.parse(String(text).trim()); inc = p && p.app === "rack-log" ? p.data : null; } catch (e) { inc = null; }
+  if (!inc || typeof inc !== "object") { toast("That doesn't look like a Rack & Log backup", true); return; }
+  const replace = !!document.getElementById("bkReplace")?.checked;
+  safetyCopy(replace ? "before replace" : "before restore", true);
+  if (replace) {
+    Object.keys(data).forEach(k => { if (!(k in inc)) removeDoc(k); });
+    data = {};
+  }
+  const n = mergeIn(inc);
+  toast(n ? (replace ? `Replaced with ${n} records from the backup` : `Restored ${n} records`) : "Nothing to restore", !n); render();
+}
+const backupText = () => JSON.stringify({ app: "rack-log", v: 2, exported: new Date().toISOString(), data });
 function removeDoc(id) {
   delete data[id]; lsSave();
   if (!col) return;
@@ -492,7 +564,7 @@ function chart(e) {
   const diff = rnd(lastV - first);
   const better = e.assist ? diff < 0 : diff > 0;
   const key = e.uni ? ` <span class="muted">Solid line weaker leg, dashed stronger.</span>` : "";
-  return `${s}<p class="muted">Top set over ${sess.length} sessions: ${val(e, first)} → ${val(e, lastV)}${diff ? ` (<span class="${better ? "up" : "down"}">${diff > 0 ? "+" : ""}${e.timed ? diff + " s" : diff + " kg"}</span>)` : ""}.${key}</p>`;
+  return `${s}<p class="muted">Top set over ${sess.length} sessions: ${val(e, first)} → ${val(e, lastV)}${diff ? ` (<span class="${better ? "up" : "down"}">${diff > 0 ? "+" : ""}${e.timed ? diff + " " + uOf(e) : diff + " kg"}</span>)` : ""}.${key}</p>`;
 }
 
 function legGap(e) {
@@ -541,7 +613,7 @@ function exCard(e, i) {
     return `<div class="setrow${t?.f ? " done" : ""}${slot.s === "W" ? " weak" : ""}${e.timed ? " timed" : ""}">
       <div class="sl"><small>${sub}</small><b>${label}</b></div>
       ${e.timed ? "" : `<label class="mini"><span>${e.assist ? "assist kg" : "kg"}${e.perHand ? " each" : ""}</span><input id="w-${e.id}-${k}" data-w="${e.id}:${k}" type="number" inputmode="decimal" step="0.5" min="0" value="${wv ?? ""}" placeholder="kg"></label>`}
-      <label class="mini"><span>${e.timed ? "seconds" : "reps"}</span><input id="r-${e.id}-${k}" data-r="${e.id}:${k}" type="number" inputmode="numeric" step="1" min="0" value="${rv}" placeholder="${rPh}"></label>
+      <label class="mini"><span>${e.rLabel || (e.timed ? (e.uLong || "seconds") : "reps")}</span><input id="r-${e.id}-${k}" data-r="${e.id}:${k}" type="number" inputmode="numeric" step="1" min="0" value="${rv}" placeholder="${rPh}"></label>
       <div class="feel" role="group" aria-label="How set ${label} felt">${[1, 2, 3, 4].map(f => `<button type="button" class="f${f}${t?.f === f ? " on" : ""}" data-feel="${e.id}:${k}:${f}" aria-pressed="${t?.f === f}">${FEELS[f][0]}</button>`).join("")}</div>
     </div>`;
   }).join("");
@@ -555,7 +627,7 @@ function exCard(e, i) {
   return `<details class="ex" data-id="${e.id}"${open.has(e.id) ? " open" : ""}>
     <summary><span class="num">${i + 1}</span><span class="title"><h3>${esc(e.n)}${allDone ? ' <span class="done-mark" aria-label="all sets done">✓</span>' : ""}</h3><p>${e.sets} × ${e.reps}${e.extra ? " · +1 set weaker leg" : ""}</p></span>${curHtml}</summary>
     <div class="body">
-      <div class="prescr"><div><strong>${e.sets}${e.extra ? "+1" : ""}</strong><span>sets</span></div><div><strong>${e.reps.replace(/ (each|side|s)$/, "").replace(" each side", "")}</strong><span>${e.timed ? "seconds" : "reps"}${/each/.test(e.reps) ? " each" : ""}</span></div><div><strong>${restLabel(e.rest)}</strong><span>rest</span></div></div>
+      <div class="prescr"><div><strong>${e.sets}${e.extra ? "+1" : ""}</strong><span>sets</span></div><div><strong>${e.reps.replace(/ ?(s|m)?( each)?( side)?$/, "")}</strong><span>${e.rLabel || (e.timed ? (e.uLong || "seconds") : "reps")}${/each/.test(e.reps) ? (/side/.test(e.reps) ? " each side" : " each") : ""}</span></div><div><strong>${restLabel(e.rest)}</strong><span>rest</span></div></div>
       <div><p class="label">Suggested for today</p>${sugHtml}</div>
       <div><p class="label">How to do it</p><ol class="how">${e.how.map(s => `<li>${esc(s)}</li>`).join("")}</ol></div>
       ${e.tip ? `<p class="tip">${esc(e.tip)}</p>` : ""}
@@ -566,7 +638,7 @@ function exCard(e, i) {
       </div>
       <div class="row">
         ${e.rest ? `<button type="button" class="btn ghost" data-rest="${e.rest}" data-name="${esc(e.n)}">Start ${restLabel(e.rest)} rest</button>` : ""}
-        <label class="stepf" for="step-${e.id}">${e.timed ? "Time jump (s)" : "Weight jump (kg)"} <input id="step-${e.id}" data-step="${e.id}" type="number" inputmode="decimal" step="0.5" min="0.5" value="${stepOf(e)}"></label>
+        <label class="stepf" for="step-${e.id}">${e.timed ? (e.u === "reps" ? "Rep jump" : "Time jump (s)") : "Weight jump (kg)"} <input id="step-${e.id}" data-step="${e.id}" type="number" inputmode="decimal" step="0.5" min="0.5" value="${stepOf(e)}"></label>
       </div>
       <div class="prog"><p class="label">Progress</p>${next}${chart(e)}${e.uni ? legGap(e) : ""}</div>
     </div>
@@ -656,8 +728,8 @@ function summaryCard(L, big) {
   const volCmp = p && p.volume ? Math.round((L.volume - p.volume) / p.volume * 100) : null;
   const ups = (L.ex || []).filter(x => x.dir === "up");
   const bests = (L.ex || []).filter(x => x.best);
-  const v = x => x.timed ? x.top + " s" : kg(x.top);
-  const nv = x => x.timed ? x.next + " s" : kg(x.next);
+  const v = x => x.timed ? x.top + " " + (x.u || "s") : kg(x.top);
+  const nv = x => x.timed ? x.next + " " + (x.u || "s") : kg(x.next);
   return `<div class="saved">${head}${big ? `<h3>Workout saved</h3>` : ""}
     <div class="meta"><span class="chip">${L.sets} of ${L.total} sets</span>${L.volume ? `<span class="chip">${fmtInt(L.volume)} kg lifted</span>` : ""}<span class="chip">${ups.length} going up next time</span></div>
     ${volCmp != null ? `<p>${volCmp >= 0 ? `<span class="up">+${volCmp}%</span>` : `<span class="down">${volCmp}%</span>`} total weight lifted vs last ${DAYNAME[L.day]} (${longDate(p.d)}).</p>` : ""}
@@ -678,7 +750,7 @@ function finishWorkout() {
     const prevBest = prevs.length ? (e.assist ? Math.min(...prevs) : Math.max(...prevs)) : null;
     const best = top != null && prevBest != null && (e.assist ? top < prevBest : top > prevBest);
     const n = suggest(e, side, rec(e).sessions);
-    ex.push({ id: e.id, n: e.n, sets: done, top, timed: !!e.timed, assist: !!e.assist, best, next: n.w, dir: n.dir });
+    ex.push({ id: e.id, n: e.n, sets: done, top, timed: !!e.timed, u: e.u || null, assist: !!e.assist, best, next: n.w, dir: n.dir });
   });
   const key = logKey(dk);
   data[key] = { kind: "weights", d: TODAY, day: dk, title: d.title, saved: new Date().toISOString(),
@@ -735,27 +807,29 @@ function renderProgress() {
     const first = topOf(e, sess[0], side), last = topOf(e, sess[sess.length - 1], side);
     const diff = rnd(last - first), better = e.assist ? diff < 0 : diff > 0;
     const n = suggest(e, side, rec(e).sessions);
-    rows.push(`<tr><td>${esc(e.n)}${e.uni ? ' <span class="muted">(weaker)</span>' : ""}</td><td class="r">${rnd(first)} → ${rnd(last)}${e.timed ? " s" : ""}</td><td class="r ${diff ? (better ? "up" : "down") : "muted"}">${diff ? (diff > 0 ? "+" : "") + diff : "–"}</td><td class="r">${n.w != null ? val(e, n.w) : "–"}${n.dir === "up" ? ' <span class="up">▲</span>' : ""}</td></tr>`);
+    rows.push(`<tr><td>${esc(e.n)}${e.uni ? ' <span class="muted">(weaker)</span>' : ""}</td><td class="r">${rnd(first)} → ${rnd(last)}${e.timed ? " " + uOf(e) : ""}</td><td class="r ${diff ? (better ? "up" : "down") : "muted"}">${diff ? (diff > 0 ? "+" : "") + diff : "–"}</td><td class="r">${n.w != null ? val(e, n.w) : "–"}${n.dir === "up" ? ' <span class="up">▲</span>' : ""}</td></tr>`);
     if (e.uni) { const g = legGap(e); if (g) balance.push(`<div><p><b>${esc(e.n)}</b></p>${g}</div>`); }
   }));
-  html += `<section class="panel"><h3>Strength</h3>${rows.length ? `<div class="tablewrap"><table><thead><tr><th>Exercise</th><th class="r">First → latest</th><th class="r">Change</th><th class="r">Next</th></tr></thead><tbody>${rows.join("")}</tbody></table></div><p class="muted">Heaviest set per exercise, in kg (plank in seconds). For assisted pull-ups, lower is better.</p>` : `<p class="muted">Log some sets and your strength changes appear here.</p>`}</section>`;
+  html += `<section class="panel"><h3>Strength</h3>${rows.length ? `<div class="tablewrap"><table><thead><tr><th>Exercise</th><th class="r">First → latest</th><th class="r">Change</th><th class="r">Next</th></tr></thead><tbody>${rows.join("")}</tbody></table></div><p class="muted">Heaviest set per exercise, in kg (planks in seconds, dead bug in reps). For assisted pull-ups, lower is better.</p>` : `<p class="muted">Log some sets and your strength changes appear here.</p>`}</section>`;
   html += `<section class="panel"><h3>Leg balance</h3>${balance.length ? balance.join("") : `<p class="muted">Rate sets on both legs in a single-leg exercise to compare them.</p>`}</section>`;
 
   html += `<section class="panel"><h3>Workout history</h3>${logs.length ? logs.map(l => {
     const line = l.kind === "cardio" ? `${l.mins} min${l.intervals != null ? ` · ${l.intervals} intervals` : ""}` : `${l.sets} sets${l.volume ? ` · ${fmtInt(l.volume)} kg` : ""}`;
     return `<details class="hist" data-log="${l.key}"${openLogs.has(l.key) ? " open" : ""}><summary><span class="hs"><b>${longDate(l.d)}</b><small>${esc(l.title)}</small></span><span class="muted">${line}</span></summary>
-      <div class="hb">${l.kind === "cardio" ? "" : `<ul>${(l.ex || []).map(x => `<li>${esc(x.n)}: ${x.sets} sets, top ${x.timed ? x.top + " s" : kg(x.top)}${x.best ? ' <span class="up">new best</span>' : ""}</li>`).join("")}</ul>`}
+      <div class="hb">${l.kind === "cardio" ? "" : `<ul>${(l.ex || []).map(x => `<li>${esc(x.n)}: ${x.sets} sets, top ${x.timed ? x.top + " " + (x.u || "s") : kg(x.top)}${x.best ? ' <span class="up">new best</span>' : ""}</li>`).join("")}</ul>`}
       ${l.feel ? `<p>Effort: ${["", "Easy", "Good", "Hard"][l.feel]}</p>` : ""}${l.notes ? `<p class="muted">${esc(l.notes)}</p>` : ""}
       ${confirmDel === l.key ? `<div class="row"><span>Delete this entry? Logged sets stay.</span><button type="button" class="btn" data-del-yes="${l.key}">Delete</button><button type="button" class="btn ghost" data-del-no="1">Keep</button></div>` : `<button type="button" class="linkbtn" data-del="${l.key}">Delete entry</button>`}</div></details>`;
   }).join("") : `<p class="muted">Finished workouts appear here. Use Finish &amp; save workout at the bottom of each day.</p>`}</section>`;
 
   html += `<section class="panel"><h3>Backup</h3>
     <p>Copy a backup and paste it somewhere safe, such as a note on your phone. To move your data to the Home Screen app or another phone, paste the backup below and tap Restore.</p>
-    <div class="row"><button type="button" class="btn" id="copyBk">Copy backup</button></div>
+    <div class="row"><button type="button" class="btn" id="copyBk">Copy backup</button>${PWA ? `<button type="button" class="btn ghost" id="saveBkFile">Save backup file</button>` : ""}</div>
     <textarea id="bkOut" readonly hidden aria-label="Backup text"></textarea>
     <label class="fl" for="bkIn">Restore from a backup<textarea id="bkIn" placeholder="Paste a backup here"></textarea></label>
-    <div class="row"><button type="button" class="btn ghost" id="restoreBk">Restore</button></div>
-    <p class="status">Restoring adds the backup's sessions to what's already here. Where both have the same day, the backup's version is kept.</p>
+    <div class="row"><button type="button" class="btn ghost" id="restoreBk">Restore pasted backup</button><label class="btn ghost" for="bkFile">Restore from file</label><input type="file" id="bkFile" accept=".json,.txt,application/json,text/plain" hidden></div>
+    <label class="fl" for="bkReplace" style="display:flex;gap:8px;align-items:flex-start;font-size:.88rem;color:var(--ink)"><input type="checkbox" id="bkReplace" style="width:auto;margin-top:3px"> Replace everything on this ${PWA ? "phone" : "device"} with the backup, instead of adding to it</label>
+    <p class="status">Without the tick, restoring never deletes anything: it adds the backup's sessions and, where both have the same day, keeps the copy with more sets logged. With the tick, everything here is swapped for the backup. Either way an automatic copy is saved first, so you can bring back what was here.</p>
+    ${safetyList().length ? `<div><p class="label">Automatic copies on this device</p><div class="sets">${safetyList().map((c, i) => `<div class="row"><span>${new Date(c.at).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · ${esc(c.reason)}</span><button type="button" class="btn ghost" data-safety="${i}">Bring back</button></div>`).join("")}</div></div>` : ""}
   </section>`;
   return html;
 }
@@ -765,38 +839,35 @@ function wireProgress() {
   document.querySelectorAll("[data-del-no]").forEach(b => b.onclick = () => { confirmDel = null; render(); });
   document.querySelectorAll("[data-del-yes]").forEach(b => b.onclick = () => { removeDoc(b.dataset.delYes); confirmDel = null; toast("Entry deleted"); render(); });
   $("#copyBk").onclick = () => {
-    const txt = JSON.stringify({ app: "rack-log", v: 2, exported: new Date().toISOString(), data });
+    const txt = backupText();
     const fallback = () => { const o = $("#bkOut"); o.hidden = false; o.value = txt; o.focus(); o.select(); toast("Select all and copy the text", true); };
     try { navigator.clipboard.writeText(txt).then(() => toast("Backup copied"), fallback); } catch (e) { fallback(); }
   };
-  $("#restoreBk").onclick = () => {
-    let inc;
-    try { const p = JSON.parse($("#bkIn").value.trim()); inc = p && p.app === "rack-log" ? p.data : null; } catch (e) { inc = null; }
-    if (!inc || typeof inc !== "object") { toast("That doesn't look like a Rack & Log backup", true); return; }
-    const ids = new Set(DAYS.flatMap(dk => (PLAN[dk].ex || []).map(e => e.id)));
-    let n = 0;
-    Object.entries(inc).forEach(([k, v]) => {
-      if (!v || typeof v !== "object" || !(k.startsWith("log-") || ids.has(k))) return;
-      if (k.startsWith("log-") || !data[k] || !data[k].sessions || !v.sessions) data[k] = JSON.parse(JSON.stringify(v));
-      else {
-        const m = new Map(data[k].sessions.map(s => [s.d, s]));
-        v.sessions.forEach(s => m.set(s.d, s));
-        data[k].sessions = [...m.values()].sort((a, b) => a.d < b.d ? -1 : 1).slice(-60);
-        if (v.step) data[k].step = v.step;
-      }
-      persist(k); n++;
-    });
-    toast(n ? `Restored ${n} records` : "Nothing to restore", !n); render();
+  $("#restoreBk").onclick = () => restoreFrom($("#bkIn").value);
+  $("#bkFile").onchange = ev => { const f = ev.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => restoreFrom(r.result); r.readAsText(f); ev.target.value = ""; };
+  const sf = $("#saveBkFile"); if (sf) sf.onclick = async () => {
+    const name = `rack-log-backup-${TODAY}.json`, blob = new Blob([backupText()], { type: "application/json" });
+    try {
+      const file = new File([blob], name, { type: "application/json" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: "Rack & Log backup" }); return; }
+    } catch (e) { if (e && e.name === "AbortError") return; }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
   };
+  document.querySelectorAll("[data-safety]").forEach(b => b.onclick = () => {
+    const c = safetyList()[+b.dataset.safety]; if (!c) return;
+    safetyCopy("before restore", true); const n = mergeIn(c.data); toast(`Brought back ${n} records`); render();
+  });
 }
 
 /* ---------- home screen app ---------- */
 function installHint() {
   if (!PWA) return "";
+  const empty = !Object.keys(data).some(k => worthKeeping(data[k], k));
+  const bring = empty ? `<div class="note install"><b>No workouts on this phone yet</b>To bring over workouts you logged in the Claude version: open it, go to the Log tab and tap Copy backup. Then come back here, open the Log tab, paste it into Restore and tap Restore pasted backup.</div>` : "";
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const standalone = navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
-  if (standalone) return "";
-  return `<div class="note install"><b>Add to your Home Screen</b>${ios ? "In Safari, tap the Share button, then Add to Home Screen." : "Open your browser menu and choose Install app or Add to Home screen."}</div>`;
+  if (standalone) return bring;
+  return bring + `<div class="note install"><b>Add to your Home Screen</b>${ios ? "In Safari, tap the Share button, then Add to Home Screen." : "Open your browser menu and choose Install app or Add to Home screen."}</div>`;
 }
 function registerSW() {
   try { if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) {}
